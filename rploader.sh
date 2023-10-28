@@ -145,8 +145,8 @@ function setnetwork() {
 }
 
 function httpconf() {
-    tce-load -iw php-8.0-cgi 2>&1 >/dev/null
     tce-load -iw lighttpd 2>&1 >/dev/null
+    tce-load -iw php-8.0-cgi 2>&1 >/dev/null
     sudo cp /home/tc/include/php.ini /usr/local/etc/php/
 
     cat >/home/tc/lighttpd.conf <<EOF
@@ -213,7 +213,7 @@ function extremove() {
 
 function extvars() {
 
-    ext="$(curl --silent --location $1)"
+    ext="$(curl --insecure --silent --location $1)"
     platform="$2"
     [ $(echo $ext | grep 404 | wc -l) -eq 1 ] && echo "Extension not found" && exit 1
     if [ -f platform ] && [ ! "$(cat platform)" == "$platform" ]; then
@@ -225,7 +225,7 @@ function extvars() {
     fi
 
     extid="$(echo $ext | jq -r -e .id)"
-    extrelease="$(curl --silent --location $extcontents)"
+    extrelease="$(curl --insecure --silent --location $extcontents)"
 
     [ $(echo $extrelease | jq . | wc -l) -eq 0 ] && echo "Extension does not contain information about platform $2" && exit 1
 
@@ -252,7 +252,7 @@ function processexts() {
             download=$(echo $extrelease | jq -r -e ".files[] | select(.name | contains(\"$file\")) .url")
             modules="$(echo $extrelease | jq -r -e '.kmods')"
             echo " Downloading : $name "
-            cd $extid && curl --silent --location $download -O && cd ..
+            cd $extid && curl --insecure --silent --location $download -O && cd ..
 
             packed=$(echo $extrelease | jq -r -e ".files[] | select(.name | contains(\"$file\")) .packed")
 
@@ -2300,19 +2300,11 @@ function serialgen() {
     [ ! -z "$GATEWAY_INTERFACE" ] && shift 0 || shift 1
 
     [ "$2" == "realmac" ] && let keepmac=1 || let keepmac=0
-    
-    keepmacinterface="eth0"
-    
-    if [[ -n "$3" ]]; then
-        keepmacinterface="$3"
-    fi
-
-    echo "Interface selected : $keepmacinterface"
 
     if [ "$1" = "DS3615xs" ] || [ "$1" = "DS3617xs" ] || [ "$1" = "DS916+" ] || [ "$1" = "DS918+" ] || [ "$1" = "DS920+" ] || [ "$1" = "DS3622xs+" ] || [ "$1" = "FS6400" ] || [ "$1" = "DVA3219" ] || [ "$1" = "DVA3221" ] || [ "$1" = "DS1621+" ] || [ "$1" = "DVA1622" ] || [ "$1" = "DS2422+" ] || [ "$1" = "RS4021xs+" ] || [ "$1" = "DS1522+" ] || [ "$1" = "DS923+" ] || [ "$1" = "SA6400" ] || [ "$1" = "FS2500" ] || [ "$1" = "RS3413xs+" ] || [ "$1" = "ds1019p" ] || [ "$1" = "dS1520p" ] || [ "$1" = "ds1621xsp" ] || [ "$1" = "ds723p" ]; then
         serial="$(generateSerial $1)"
         mac="$(generateMacAddress $1)"
-        realmac=$(ifconfig $keepmacinterface | head -1 | awk '{print $NF}')
+        realmac=$(ifconfig eth0 | head -1 | awk '{print $NF}')
         echo "Serial Number for Model = $serial"
         echo "Mac Address for Model $1 = $mac "
         [ $keepmac -eq 1 ] && echo "Real Mac Address : $realmac"
@@ -2826,7 +2818,6 @@ mountshare, version, monitor, bringfriend, downloadupgradepat, help
   DS3615xs DS3617xs DS916+ DS918+ DS920+ DS3622xs+ FS6400 DVA3219 DVA3221 DS1621+ DVA1622 DS2422+ RS4021xs+ DS923+ DS1522+ SA6400 FS2500 RS3413xs+ DS1019+ DS1520+ DS1621xs+ DS723+
   
   Valid Options :  realmac , keeps the real mac of interface eth0
-                   realmac <ethernet interface>, realmac eth2
   
 - identifyusb :    
   Tries to identify your loader usb stick VID:PID and updates the user_config.json file 
@@ -3197,7 +3188,7 @@ function buildloader() {
     echo "Caching files for future use"
     [ ! -d ${local_cache} ] && mkdir ${local_cache}
 
-    if [ $(df -h -BM /mnt/${tcrppart} | grep mnt | awk '{print $4}' | sed -e 's/M//g') -le 400 ]; then
+    if [ $(df -h /mnt/${tcrppart} | grep mnt | awk '{print $4}' | sed -e 's/M//g' -e 's/G//g' | cut -c 1-3) -le 400 ]; then
         echo "No adequate space on TCRP loader partition /mnt/${tcrppart} to cache pat file"
         echo "Found $(ls /mnt/${tcrppart}/auxfiles/*pat) file"
         echo "Removing older cached pat files to cache current"
